@@ -41,8 +41,10 @@ button{font:inherit;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;
 button.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
 button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 button:disabled{opacity:.4;cursor:default}
-.combo{min-height:58px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
-  font-size:1.5rem;font-weight:900;margin-bottom:8px;text-align:center}
+/* 合体の表示欄は高さを固定（2行になっても盤面がずれないように） */
+.combo{height:84px;overflow:hidden;display:flex;align-items:center;align-content:center;justify-content:center;
+  gap:2px 8px;flex-wrap:wrap;font-size:1.5rem;font-weight:900;margin-bottom:8px;text-align:center}
+@media (max-width:420px){ .combo{font-size:1.25rem} .combo .res{font-size:1.6rem} }
 .combo .plus{color:var(--sub);font-weight:600}
 .combo .res{color:var(--accent);font-size:1.9rem}
 .combo .tag{font-size:.7rem;font-weight:600;background:var(--accent);color:#fff;border-radius:99px;padding:2px 8px}
