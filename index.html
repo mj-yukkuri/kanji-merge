@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>漢字マージ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4efe6; --ink:#2b2622; --sub:#7a6e62; --board:#c9bba7; --cell:#ddd2c2;
+  --accent:#c8402c; --panel:#fffaf2; --line:#e3d8c7;
+  --d0:#fbf6ec; --d0t:#3a2f25;
+  --d1:#f2d89c; --d1t:#3a2f25;
+  --d2:#eaa66a; --d2t:#2b1f15;
+  --d3:#d4613f; --d3t:#fff;
+  --d4:#a8323a; --d4t:#fff;
+  --d5:#5b3a8c; --d5t:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1d1a17; --ink:#efe7da; --sub:#a89b8b; --board:#3a332c; --cell:#4a4138;
+    --accent:#e7684f; --panel:#26221e; --line:#3d362f;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Serif JP","Yu Mincho","Hiragino Mincho ProN",serif;}
+body{min-height:100vh;display:flex;justify-content:center;padding:16px;}
+main{width:100%;max-width:600px;}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
+h1{margin:0;font-size:2.1rem;font-weight:900;letter-spacing:.02em;line-height:1}
+h1 span{color:var(--accent)}
+.scores{display:flex;gap:6px}
+.score{background:var(--board);border-radius:8px;padding:4px 12px;text-align:center;min-width:64px}
+.score small{display:block;font-size:.7rem;color:var(--sub)}
+.score b{font-size:1.15rem}
+.bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+button{font:inherit;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;
+  background:var(--ink);color:var(--bg);font-weight:600;font-size:.9rem}
+button.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:default}
+.combo{min-height:58px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  font-size:1.5rem;font-weight:900;margin-bottom:8px;text-align:center}
+.combo .plus{color:var(--sub);font-weight:600}
+.combo .res{color:var(--accent);font-size:1.9rem}
+.combo .tag{font-size:.7rem;font-weight:600;background:var(--accent);color:#fff;border-radius:99px;padding:2px 8px}
+.combo .note{flex-basis:100%;font-size:.75rem;color:var(--sub);font-weight:600}
+.flagBtn{font-size:.7rem;padding:2px 8px;border-radius:99px;background:transparent;color:var(--sub);border:1px solid var(--line)}
+.flagBtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+body.debug .rec{cursor:pointer}
+.debug-only{display:none!important}
+body.debug .debug-only{display:inline-block!important}
+.debugTag{font-size:.7rem;background:var(--accent);color:#fff;border-radius:4px;padding:1px 6px;margin-left:8px;vertical-align:middle;font-weight:600}
+body.debug .rec.flag{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.rv{display:grid;grid-template-columns:1fr;gap:8px;padding:8px 16px 16px}
+.rvrow{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.rvrow .t{font-weight:900;font-size:1.1rem}
+.rvrow .why{font-size:.75rem;color:var(--sub);margin-left:6px}
+.rvrow .acts{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center}
+.rvrow .acts button{font-size:.75rem;padding:4px 10px;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.rvrow .acts button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rvrow input{flex:1;min-width:120px;font:inherit;font-size:.8rem;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.rvhead{font-size:.8rem;color:var(--sub);padding:10px 16px 0}
+#board.suggest{outline:3px dashed #2f7a4f;outline-offset:3px;cursor:pointer}
+.face.picked{outline:4px solid #2f7a4f;outline-offset:-4px}
+.sgform{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-weight:900;font-size:1.2rem}
+.sgform input{width:3em;text-align:center;font:inherit;font-size:1.2rem;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.sgform input.memo{width:auto;flex:1;min-width:140px;font-size:.8rem;font-weight:600;text-align:left}
+.combo .yomi{font-size:.8rem;color:var(--sub);font-weight:600}
+.combo.flash{animation:flash .35s ease}
+@keyframes flash{from{transform:scale(1.15)}to{transform:scale(1)}}
+
+#board{position:relative;width:100%;aspect-ratio:1;background:var(--board);border-radius:12px;
+  touch-action:none;user-select:none;-webkit-user-select:none}
+.cellbg,.tile{position:absolute;top:0;left:0;border-radius:6px}
+.cellbg{background:var(--cell)}
+.tile{transition:transform 110ms ease-in-out;z-index:2}
+.face{width:100%;height:100%;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-weight:900;line-height:1;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+.face.pop{animation:pop 180ms ease}
+.face.new{animation:appear 180ms ease}
+.face.done{animation:shine 700ms ease}
+.face.final{box-shadow:inset 0 0 0 3px #d9a21b,0 2px 0 rgba(0,0,0,.12)}
+.face.poof{animation:poof 250ms ease forwards}
+@keyframes appear{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes shine{0%{transform:scale(.6)}35%{transform:scale(1.25);box-shadow:0 0 0 5px gold,0 0 26px gold}100%{transform:scale(1)}}
+@keyframes poof{to{transform:scale(0) rotate(-30deg);opacity:0}}
+.float{position:absolute;z-index:5;pointer-events:none;font-weight:900;color:var(--accent);
+  animation:float 800ms ease forwards;font-size:1.1rem;text-shadow:0 1px 0 var(--bg)}
+@keyframes float{from{transform:translateY(0);opacity:1}to{transform:translateY(-40px);opacity:0}}
+
+.overlay{position:absolute;inset:0;z-index:10;border-radius:12px;background:rgba(244,239,230,.82);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center}
+.overlay.show{display:flex}
+.overlay h2{margin:0;font-size:2.2rem}
+@media (prefers-color-scheme: dark){ .overlay{background:rgba(29,26,23,.85)} }
+
+.help{font-size:.82rem;color:var(--sub);line-height:1.7;margin-top:14px}
+.help b{color:var(--ink)}
+
+dialog{border:0;border-radius:14px;padding:0;width:min(460px,calc(100vw - 32px));max-height:80vh;
+  background:var(--panel);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.dhead{position:sticky;top:0;background:var(--panel);display:flex;justify-content:space-between;align-items:center;
+  padding:14px 16px;border-bottom:1px solid var(--line)}
+.dhead h3{margin:0}
+.list{padding:8px 16px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:6px}
+.rec{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:1.05rem;font-weight:900;
+  display:flex;align-items:baseline;gap:3px}
+.rec small{font-size:.65rem;color:var(--sub);font-weight:600;margin-left:auto}
+.rec.no{color:var(--sub)}
+.rec.no .r{opacity:.4}
+.rec .r{color:var(--accent)}
+.face.wild{background:linear-gradient(135deg,#ffe08a,#f6a6c8,#9fd4ff)!important;color:#3a2f25!important;
+  flex-direction:column;gap:0;box-shadow:inset 0 0 0 2px #fff8,0 2px 0 rgba(0,0,0,.12)}
+.face.wild small{font-size:.32em;font-weight:900;margin-top:-.1em}
+.face.bushu{background:conic-gradient(from 45deg,#5b3a8c,#c8402c,#d9a21b,#2f7a4f,#5b3a8c)!important;color:#fff!important;
+  flex-direction:column;gap:0;box-shadow:inset 0 0 0 3px gold,0 0 12px gold;animation:shine 1.6s ease-in-out infinite alternate}
+.face.bushu span{font-size:.5em;font-weight:900;letter-spacing:-.05em;text-shadow:0 1px 2px #0008}
+.face.bushu small{font-size:.26em;font-weight:900;text-shadow:0 1px 2px #0008}
+#pick .opt .hint{font-size:.6rem;color:var(--sub);font-weight:600}
+.face.pending{outline:3px dashed var(--accent);outline-offset:-3px}
+#pick .opts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:90%}
+#pick .opt{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:8px 10px;font-size:1.8rem;font-weight:900;
+  background:var(--panel);color:var(--ink);border:2px solid var(--line);border-radius:10px}
+#pick .opt:hover,#pick .opt:focus{border-color:var(--accent)}
+#pick .opt.cur{border-color:var(--accent);background:var(--accent);color:#fff;outline:none}
+#pick .opt.cur small,#pick .opt.cur .nw{color:#fff}
+#pick .opt small{font-size:.65rem;color:var(--sub);font-weight:600}
+#pick .opt .nw{color:#2f7a4f}
+#pick h2{font-size:1.6rem}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>漢字<span>マージ</span><small class="debug-only debugTag">DEBUG</small></h1>
+    <div class="scores">
+      <div class="score"><small>スコア</small><b id="score">0</b></div>
+      <div class="score"><small>ベスト</small><b id="best">0</b></div>
+    </div>
+  </header>
+  <div class="bar">
+    <button id="newBtn">新しく始める</button>
+    <button id="bookBtn" class="ghost">図鑑 0/0</button>
+    <button id="helpBtn" class="ghost">遊び方</button>
+    <button id="suggestBtn" class="ghost debug-only">合体の提案</button>
+    <button id="reviewBtn" class="ghost debug-only">見直し</button>
+  </div>
+  <div class="combo" id="combo"></div>
+  <div id="board">
+    <div class="overlay" id="pick">
+      <h2 id="pickTitle"></h2>
+      <div class="meta" style="color:var(--sub);font-size:.85rem">どの字にする？（←→で選んで ↓・Enter・スペースで決定）</div>
+      <div class="opts" id="pickOpts"></div>
+    </div>
+    <div class="overlay" id="over">
+      <h2>おしまい</h2>
+      <div id="overMsg"></div>
+      <button id="againBtn">もう一度</button>
+    </div>
+  </div>
+</main>
+
+<dialog id="review">
+  <div class="dhead"><h3>組み合わせの見直し</h3>
+    <span style="display:flex;gap:6px"><button id="clearReview" class="ghost" title="反映が済んだ印と提案をまとめて消します">印と提案をすべて消す</button><button id="copyReview">結果をコピー</button><button class="ghost" id="closeReview">閉じる</button></span></div>
+  <div class="rvhead">遊んでいて「違和感」を押したものと、字形が少し無理やりかもしれない候補です。残す・直す・消すを選び、気になる点はメモに書いてください。「結果をコピー」でまとめた文章をチャットに貼り付けてもらえれば反映します。</div>
+  <div class="rv" id="reviewList"></div>
+  <div class="rvhead">合体できるはずなのにできない組み合わせを追加（盤面の「合体の提案」からも登録できます）</div>
+  <div class="rv"><div class="rvrow sgform" id="sgAdd">
+    <input id="sgA" maxlength="2">＋<input id="sgB" maxlength="2">＝<input id="sgC" maxlength="2">
+    <input id="sgM" class="memo" placeholder="メモ（任意）"><button id="sgSave">追加</button></div></div>
+</dialog>
+<dialog id="sgDialog">
+  <form method="dialog" style="padding:16px;display:grid;gap:10px">
+    <div style="font-weight:900">合体の提案</div>
+    <div class="sgform"><span id="sgDA"></span>＋<span id="sgDB"></span>＝<input id="sgDC" maxlength="2" placeholder="？"></div>
+    <input id="sgDM" placeholder="メモ（任意）" style="font:inherit;font-size:.85rem;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)">
+    <div style="font-size:.75rem;color:var(--sub)">できるはずの字を入力してください（わからなければ空のままでもOK）</div>
+    <!-- Enter で「記録する」になるよう先に置き、表示は右側にする -->
+    <div style="display:flex;gap:8px;flex-direction:row-reverse">
+      <button value="ok">記録する</button><button value="cancel" class="ghost">やめる</button></div>
+  </form>
+</dialog>
+<dialog id="copyDialog">
+  <div style="padding:16px;display:grid;gap:10px">
+    <div style="font-weight:900">下の文章をコピーしてください</div>
+    <textarea id="copyText" rows="12" style="width:100%;font:inherit;font-size:.85rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px"></textarea>
+    <div style="text-align:right"><button id="copyClose">閉じる</button></div>
+  </div>
+</dialog>
+<dialog id="book">
+  <div class="dhead"><h3 id="bookTitle">漢字図鑑</h3><button class="ghost" id="closeBook">閉じる</button></div>
+  <div class="list" id="bookList"></div>
+</dialog>
+
+<!-- data.js は更新が多いので、ブラウザのキャッシュを使わず毎回読み込む -->
+<script>document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');</script>
+<script>
+// データは data.js（SPAWN / RADICAL / PART_NAME / RECIPES / YOMI）
+const N = 8;
+const pairKey = (a,b) => [a,b].sort().join("");
+// 組み合わせ → できる字の候補 [{res, key, rec}]（2つ以上なら合体のときに選ぶ）
+const OPTS = new Map();
+RECIPES.forEach((r, i) => { const k = pairKey(r[0], r[1]); if (!OPTS.has(k)) OPTS.set(k, []); OPTS.get(k).push({res: r[2], key: RECIPE_KEYS[i], rec: r}); });
+const R = new Map([...OPTS].map(([k, l]) => [k, l[0].res]));      // 合体できるかの判定用（最初の字）
+const REC = new Map(RECIPES.map((r, i) => [RECIPE_KEYS[i], r]));   // 図鑑キー → レシピ
+// 表示用の部品の並び（部首として使うときは変形した形にする。灬は下、刂は右に付くので後ろ）
+function shownParts([a, b, , v]){
+  if (!v) return [a, b];
+  const ps = a === RADICAL[v][0] ? [v, b] : [a, v];
+  return (v === "灬" || v === "刂") ? ps.filter(p => p !== v).concat(v) : ps;
+}
+function partNotes(r){
+  return shownParts(r).map(p => RADICAL[p] && r[3] === p
+      ? `${p}＝${RADICAL[p][1]}${p !== RADICAL[p][0] ? `（${RADICAL[p][0]}）` : ""}`
+      : PART_NAME[p] && p !== "丨" ? `${p}＝${PART_NAME[p]}` : null).filter(Boolean);
+}
+const INPUTS = new Set(RECIPES.flatMap(r => [r[0], r[1]]));
+const DEPTH = {};
+SPAWN.forEach(([k]) => DEPTH[k] = 0);
+for (let changed = true; changed;){
+  changed = false;
+  for (const [a,b,c] of RECIPES){
+    if (DEPTH[a] == null || DEPTH[b] == null || DEPTH[c] != null) continue;
+    DEPTH[c] = Math.max(DEPTH[a], DEPTH[b]) + 1; changed = true;
+  }
+}
+// 一画足しだけで作れる字の段数
+for (const [base, list] of Object.entries(WILD_EXTRA)) for (const res of list) DEPTH[res] ??= DEPTH[base] + 1;
+DEPTH[WILD_TILE] = DEPTH[BUSHU_TILE] = 0;
+const isWild = k => k === WILD_TILE || k === BUSHU_TILE;   // 特殊タイル（一画・部首）
+const isFinal = k => !INPUTS.has(k) && !isWild(k);
+// a と b が合体できるか（通常レシピ、または一画タイル＋候補のある字）
+// 特殊タイルとふつうの字の合体：{base: 相手の字, title, opts: 候補}（候補がなければ null）
+function specialFuse(a, b){
+  const sp = isWild(a) && !isWild(b) ? a : isWild(b) && !isWild(a) ? b : null;
+  if (!sp) return null;
+  const base = sp === a ? b : a;
+  const opts = sp === WILD_TILE
+    ? WILD[base]?.map(o => ({...o, rec: [base, "一画", o.res]}))
+    : BUSHU_OPTS[base]?.map(o => ({...o, hint: shownParts(o.rec).join("＋")}));
+  return opts?.length ? {base, title: `${base} ＋ ${sp === WILD_TILE ? "一画" : "部首"}`, opts} : null;
+}
+const wildBase = (a, b) => specialFuse(a, b)?.base ?? null;
+const canFuse = (a, b) => R.has(pairKey(a,b)) || !!specialFuse(a, b);
+const WILD_KEYS = new Set(Object.values(WILD).flat().map(o => o.key).filter(k => k.startsWith("W:")));
+const BOOK_TOTAL = RECIPES.length + WILD_KEYS.size;
+
+// ---- 保存 ----
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem("kanjimerge:"+k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("kanjimerge:"+k, JSON.stringify(v)); }catch(e){} }
+};
+
+// ---- 状態 ----
+const $ = id => document.getElementById(id);
+// デバッグモード：URL に ?debug を付けると「合体の提案」「見直し」「違和感」が使える（例：index.html?debug）
+const DEBUG = new URLSearchParams(location.search).has("debug");
+document.body.classList.toggle("debug", DEBUG);
+const board = $("board");
+let grid, tiles = new Map(), nextId = 1, score, busy, over;
+let best = store.get("best", 0);
+// 見つけたレシピ（RECIPE_KEYS か W:一画足し）。データを直して消えたレシピの記録は数えない
+const found = new Set(store.get("found", []).filter(k => REC.has(k) || WILD_KEYS.has(k)));
+let size = 0, gap = 0;
+// 違和感の印と見直し結果: key → {d: "残す"|"直す"|"消す"|"", m: メモ, f: 自分で印を付けたか}
+const reviews = store.get("reviews", {});
+const saveReviews = () => store.set("reviews", reviews);
+// 合体の提案: [{a, b, c, m}]
+const suggests = store.get("suggests", []);
+const saveSuggests = () => store.set("suggests", suggests);
+function addSuggest(a, b, c, m){
+  if (!a || !b) return false;
+  const known = (OPTS.get(pairKey(a, b)) || []).map(o => o.res).join("・");
+  suggests.push({a, b, c: c || "？", m: (m || "") + (known ? `（今は ${known} になる）` : "")});
+  saveSuggests(); updateUI();
+  return true;
+}
+function recText(key){
+  if (key.startsWith("W:")){ const [b, c] = [...key.slice(2)]; return `${b}＋一画＝${c}`; }
+  const r = REC.get(key); if (!r) return key;
+  const [a, b] = shownParts(r); return `${a}＋${b}＝${r[2]}`;
+}
+function toggleFlag(key){
+  const v = reviews[key] ||= {d: "", m: "", f: false};
+  v.f = !v.f;
+  if (!v.f && !v.d && !v.m) delete reviews[key];
+  saveReviews(); updateUI();
+  return !!reviews[key]?.f;
+}
+
+const pool = () => SPAWN.filter(s => found.size >= s[1]);
+
+function layout(){
+  const w = board.clientWidth;
+  gap = w * 0.014;
+  size = (w - gap*(N+1)) / N;
+  board.querySelectorAll(".cellbg").forEach(el => place(el, +el.dataset.r, +el.dataset.c));
+  tiles.forEach(t => { if (!t.el) return; place(t.el, t.r, t.c); t.el.firstChild.style.fontSize = size*0.6+"px"; });
+}
+function place(el, r, c){
+  el.style.width = el.style.height = size+"px";
+  el.style.transform = `translate(${gap + c*(size+gap)}px, ${gap + r*(size+gap)}px)`;
+}
+
+function makeTile(k, r, c, cls, id){
+  const t = {id: id ?? nextId++, k, r, c};
+  const el = document.createElement("div");
+  el.className = "tile";
+  el.dataset.id = t.id;
+  const face = document.createElement("div");
+  const d = Math.min(DEPTH[k], 5);
+  face.className = "face " + (cls||"") + (isFinal(k) ? " final" : "");
+  face.style.background = `var(--d${d})`;
+  face.style.color = `var(--d${d}t)`;
+  face.style.fontSize = size*0.6+"px";
+  if (k === WILD_TILE){ face.classList.add("wild"); face.innerHTML = `＋<small>一画</small>`; }
+  else if (k === BUSHU_TILE){ face.classList.add("bushu"); face.innerHTML = `<span>部首</span><small>なんでも</small>`; }
+  else face.textContent = k;
+  el.appendChild(face);
+  t.el = el;
+  place(el, r, c);
+  board.appendChild(el);
+  return t;
+}
+
+function newGame(){
+  board.querySelectorAll(".tile,.float").forEach(e => e.remove());
+  grid = Array.from({length:N}, () => Array(N).fill(null));
+  tiles = new Map(); score = 0; busy = false; over = false;
+  $("over").classList.remove("show"); $("pick").classList.remove("show");
+  for (let i = 0; i < 8; i++) spawn();
+  updateUI();
+  showMsg("矢印キー / スワイプで部品を合体させよう");
+}
+
+// 盤面を見て出す部品を選ぶ（詰まり防止）：隣に合体相手がいれば出やすく、
+// 盤面のどこにも合体相手がいなければ出にくくする（倍率は data.js の SPAWN_RULE）
+function pickSpawn(r, c){
+  if (Math.random() < SPAWN_RULE.bushu) return BUSHU_TILE;
+  if (Math.random() < SPAWN_RULE.wild) return WILD_TILE;
+  const near = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]]
+    .filter(([y,x]) => y>=0 && y<N && x>=0 && x<N && grid[y][x]).map(([y,x]) => grid[y][x].k);
+  const onBoard = new Set(grid.flat().filter(Boolean).map(t => t.k));
+  const opts = pool().map(([k,,w,tag]) => {
+    if (near.some(n => canFuse(n,k))) return [k, w * SPAWN_RULE.near];
+    if (tag === "rare" && SPAWN_RULE.rareNearOnly) return [k, 0];   // 珍しい部品は合体相手の隣にしか出ない
+    for (const b of onBoard) if (canFuse(b,k)) return [k, w];
+    return [k, w * SPAWN_RULE.absent];
+  });
+  let x = Math.random() * opts.reduce((a,o) => a+o[1], 0);
+  for (const [k,w] of opts){ if ((x -= w) < 0) return k; }
+  return "一";
+}
+function spawn(avoid = []){
+  let empty = [];
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++) if(!grid[r][c]) empty.push([r,c]);
+  const pref = empty.filter(([r,c]) => !avoid.some(a => a[0]===r && a[1]===c));
+  if (pref.length) empty = pref;
+  if (!empty.length) return;
+  const [r,c] = empty[Math.floor(Math.random()*empty.length)];
+  const t = makeTile(pickSpawn(r,c), r, c, "new");
+  grid[r][c] = t; tiles.set(t.id, t);
+}
+
+function move(dir){
+  if (busy || over) return;
+  const [dr,dc] = {left:[0,-1],right:[0,1],up:[-1,0],down:[1,0]}[dir];
+  const rows = [...Array(N).keys()], cols = [...Array(N).keys()];
+  if (dr === 1) rows.reverse();
+  if (dc === 1) cols.reverse();
+  let moved = false;
+  const fused = new Set();      // このターンに合体してできたタイル
+  const events = [];
+  const pendings = [];          // 一画タイルの合体（あとで字を選ぶ）
+
+  for (const r of rows) for (const c of cols){
+    const t = grid[r][c];
+    if (!t) continue;
+    let nr = r, nc = c, into = null;
+    while (true){
+      const tr = nr+dr, tc = nc+dc;
+      if (tr<0 || tr>=N || tc<0 || tc>=N) break;
+      const o = grid[tr][tc];
+      if (!o){ nr = tr; nc = tc; continue; }
+      if (!fused.has(o.id) && canFuse(o.k, t.k)) into = o;
+      break;
+    }
+    if (into && specialFuse(into.k, t.k)){
+      // 一画タイル・部首タイル：どの字にするかは移動のあとで選ぶ
+      const o = into, sp = specialFuse(o.k, t.k), base = sp.base;
+      grid[r][c] = null;
+      t.r = o.r; t.c = o.c; place(t.el, t.r, t.c);
+      tiles.delete(t.id); tiles.delete(o.id);
+      setTimeout(() => { t.el.remove(); o.el.remove(); }, 110);
+      const nt = {id: nextId++, k: base, r: o.r, c: o.c};
+      grid[o.r][o.c] = nt; fused.add(nt.id); tiles.set(nt.id, nt);
+      setTimeout(() => { if (!nt.el) nt.el = makeTile(base, nt.r, nt.c, "pop pending", nt.id).el; }, 110);
+      pendings.push({nt, title: sp.title, opts: sp.opts});
+      moved = true;
+    } else if (into && OPTS.get(pairKey(into.k, t.k)).length > 1){
+      // 同じ組み合わせで複数の字ができる：どれにするかは移動のあとで選ぶ
+      const o = into, opts = OPTS.get(pairKey(o.k, t.k));
+      grid[r][c] = null;
+      t.r = o.r; t.c = o.c; place(t.el, t.r, t.c);
+      tiles.delete(t.id); tiles.delete(o.id);
+      setTimeout(() => { t.el.remove(); o.el.remove(); }, 110);
+      const nt = {id: nextId++, k: o.k, r: o.r, c: o.c};
+      grid[o.r][o.c] = nt; fused.add(nt.id); tiles.set(nt.id, nt);
+      setTimeout(() => { if (!nt.el) nt.el = makeTile(o.k, nt.r, nt.c, "pop pending", nt.id).el; }, 110);
+      pendings.push({nt, title: `${o.k} ＋ ${t.k}`, opts});
+      moved = true;
+    } else if (into){
+      const o = into, opt = OPTS.get(pairKey(o.k, t.k))[0], key = opt.key, res = opt.res;
+      grid[r][c] = null;
+      t.r = o.r; t.c = o.c; place(t.el, t.r, t.c);
+      tiles.delete(t.id); tiles.delete(o.id);
+      setTimeout(() => { t.el.remove(); o.el.remove(); }, 110);
+      const fin = isFinal(res);
+      const nt = {id: nextId++, k: res, r: o.r, c: o.c};
+      grid[o.r][o.c] = nt; fused.add(nt.id);
+      tiles.set(nt.id, nt);
+      // 表示はスライド後に差し替え
+      setTimeout(() => {
+        nt.el = makeTile(res, nt.r, nt.c, fin ? "done" : "pop", nt.id).el;
+      }, 110);
+      events.push({rec: opt.rec, key, res, fin, r: o.r, c: o.c, nt});
+      moved = true;
+    } else if (nr !== r || nc !== c){
+      grid[r][c] = null; grid[nr][nc] = t;
+      t.r = nr; t.c = nc; place(t.el, nr, nc);
+      moved = true;
+    }
+  }
+  if (!moved) return;
+  busy = true;
+  resolvePendings(pendings, events).then(() => finishTurn(events));
+}
+
+// 一画タイル・複数の字ができる合体：候補が1つなら自動、複数ならプレイヤーが選ぶ
+async function resolvePendings(pendings, events){
+  for (const p of pendings){
+    await new Promise(r => setTimeout(r, 120));
+    const opt = p.opts.length === 1 ? p.opts[0] : await choose(p.title, p.opts);
+    p.nt.k = opt.res;
+    if (p.nt.el) p.nt.el.remove();
+    const fin = isFinal(opt.res);
+    p.nt.el = makeTile(opt.res, p.nt.r, p.nt.c, fin ? "done" : "pop", p.nt.id).el;
+    events.push({rec: opt.rec, key: opt.key, res: opt.res, fin, r: p.nt.r, c: p.nt.c, nt: p.nt});
+  }
+}
+function choose(title, opts){
+  // まだ見つけていない字を先に並べる（候補が多い部首タイルで探しやすく）
+  opts = opts.slice().sort((x, y) => found.has(x.key) - found.has(y.key));
+  return new Promise(resolve => {
+    $("pickTitle").textContent = `${title} ＝ ？`;
+    $("pickOpts").innerHTML = opts.map((o,i) => `<button class="opt" data-i="${i}">${o.res}`+
+      (o.hint ? `<span class="hint">${o.hint}</span>` : "") +
+      `<small>${i < 9 ? `${i+1}. ` : ""}${YOMI[o.res]||""}${found.has(o.key) ? "" : ' <span class="nw">NEW</span>'}</small></button>`).join("");
+    const box = $("pick");
+    box.classList.add("show");
+    const done = i => { box.classList.remove("show"); document.removeEventListener("keydown", onKey, true); resolve(opts[i]); };
+    // ←→ で選んで ↓ / Enter / スペースで決定（WASD なら A・D で選んで S で決定。数字キーでも直接選べる）
+    const btns = [...box.querySelectorAll(".opt")];
+    let cur = 0;
+    const select = i => { cur = (i + btns.length) % btns.length; btns.forEach((b,j) => b.classList.toggle("cur", j === cur)); btns[cur].focus(); };
+    const onKey = e => {
+      const step = {ArrowRight:1, d:1, ArrowLeft:-1, a:-1}[e.key];
+      const i = +e.key - 1;
+      if (step) select(cur + step);
+      else if (["Enter", " ", "ArrowDown", "s"].includes(e.key)) done(cur);
+      else if (e.key === "ArrowUp" || e.key === "w") {}  // 誤操作で盤面が動かないよう握りつぶす
+      else if (i >= 0 && i < opts.length) done(i);
+      else return;
+      e.preventDefault(); e.stopPropagation();
+    };
+    document.addEventListener("keydown", onKey, true);
+    btns.forEach((b,i) => { b.onclick = () => done(i); b.onmouseenter = () => select(i); });
+    select(0);
+  });
+}
+
+function finishTurn(events){
+  // 得点・発見
+  let last = null;
+  events.forEach(e => {
+    let pts = 10 * 2 ** (DEPTH[e.res]-1);
+    if (e.fin) pts *= 3;
+    score += pts;
+    e.isNew = !found.has(e.key);
+    if (e.isNew) found.add(e.key);
+    floatText("+"+pts, e.r, e.c);
+    last = e;
+  });
+  if (events.length){ store.set("found", [...found]); showCombo(last); }
+  if (score > best){ best = score; store.set("best", best); }
+
+  setTimeout(() => {
+    spawn();
+    busy = false;
+    updateUI();
+    checkOver();
+  }, 120);
+  updateUI();
+}
+
+function canMove(){
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const t = grid[r][c];
+    if (!t) return true;
+    if (c+1<N && grid[r][c+1] && canFuse(t.k, grid[r][c+1].k)) return true;
+    if (r+1<N && grid[r+1][c] && canFuse(t.k, grid[r+1][c].k)) return true;
+  }
+  return false;
+}
+function checkOver(){
+  if (canMove()) return;
+  over = true;
+  $("overMsg").innerHTML = `スコア <b>${score}</b><br>図鑑 ${found.size}/${BOOK_TOTAL}`;
+  $("over").classList.add("show");
+}
+
+function floatText(txt, r, c){
+  const el = document.createElement("div");
+  el.className = "float"; el.textContent = txt;
+  el.style.left = (gap + c*(size+gap) + size*0.55) + "px";
+  el.style.top = (gap + r*(size+gap)) + "px";
+  board.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+function flash(box){ box.classList.remove("flash"); void box.offsetWidth; box.classList.add("flash"); }
+function showCombo(e){
+  const box = $("combo");
+  const [a, b] = shownParts(e.rec), notes = partNotes(e.rec);
+  box.innerHTML = `<span>${a}</span><span class="plus">＋</span><span>${b}</span><span class="plus">＝</span>`+
+    `<span class="res">${e.res}</span><span class="yomi">${YOMI[e.res]||""}</span>`+
+    (e.fin ? `<span class="tag">完成</span>` : "") + (e.isNew ? `<span class="tag" style="background:#2f7a4f">NEW</span>` : "")+
+    (DEBUG ? `<button class="flagBtn${reviews[e.key]?.f ? " on" : ""}" title="この組み合わせに違和感があれば押してください">違和感</button>` : "")+
+    (notes.length ? `<div class="note">${notes.join("　")}</div>` : "");
+  const fb = box.querySelector(".flagBtn");
+  if (fb) fb.onclick = ev => { ev.currentTarget.classList.toggle("on", toggleFlag(e.key)); ev.currentTarget.blur(); };
+  flash(box);
+}
+function showMsg(msg, alert){
+  const box = $("combo");
+  box.innerHTML = `<span class="yomi" ${alert ? 'style="color:var(--accent);font-size:.95rem"' : ""}>${msg}</span>`;
+  if (alert) flash(box);
+}
+
+function updateUI(){
+  $("score").textContent = score;
+  $("best").textContent = best;
+  $("bookBtn").textContent = `図鑑 ${found.size}/${BOOK_TOTAL}`;
+  const nf = Object.entries(reviews).filter(([k, v]) => v.f && (REC.has(k) || WILD_KEYS.has(k))).length;
+  const ns = suggests.filter(g => !isReflected(g)).length;
+  if (DEBUG) $("reviewBtn").textContent = nf + ns ? `見直し（${[nf && `印 ${nf}`, ns && `提案 ${ns}`].filter(Boolean).join("・")}）` : "見直し";
+}
+
+
+function openBook(){
+  $("bookTitle").textContent = `漢字図鑑 ${found.size}/${BOOK_TOTAL}`;
+  const list = RECIPES.map((r,i) => [r,i]).sort((x,y) => DEPTH[x[0][2]] - DEPTH[y[0][2]] || x[1]-y[1]);
+  $("bookList").innerHTML = list.map(([r, i]) => { const [a,b] = shownParts(r), c = r[2], k = RECIPE_KEYS[i]; return found.has(k)
+    ? `<div class="rec${reviews[k]?.f ? " flag" : ""}" data-key="${k}" title="${DEBUG ? "クリックで違和感の印 " : ""}${partNotes(r).join(" ")}">${a}＋${b}＝<span class="r">${c}</span><small>${isFinal(c) ? "完成" : YOMI[c]}</small></div>`
+    : `<div class="rec no">？＋？＝<span class="r">${c}</span></div>`; }).join("") +
+    `<div class="rec" style="grid-column:1/-1;border:0;color:var(--sub);font-size:.8rem">一画足しでしか作れない字</div>` +
+    Object.entries(WILD_EXTRA).flatMap(([b, list]) => list.map(c => found.has("W:"+b+c)
+      ? `<div class="rec${reviews["W:"+b+c]?.f ? " flag" : ""}" data-key="W:${b}${c}" title="${DEBUG ? "クリックで違和感の印" : ""}">${b}＋一画＝<span class="r">${c}</span><small>${YOMI[c]}</small></div>`
+      : `<div class="rec no">？＋一画＝<span class="r">${c}</span></div>`)).join("");
+  if (DEBUG) $("bookList").querySelectorAll(".rec[data-key]").forEach(el => el.onclick = () => el.classList.toggle("flag", toggleFlag(el.dataset.key)));
+  $("book").showModal();
+}
+
+// ---- 見直し画面 ----
+function reviewItems(){
+  const items = new Map();
+  // データから消えた組み合わせ（作り方を変えたもの）の印は出さない
+  for (const [k, v] of Object.entries(reviews)) if ((v.f || v.d || v.m) && (REC.has(k) || WILD_KEYS.has(k))) items.set(k, {why: v.f ? "遊んでいて違和感" : ""});
+  RECIPES.forEach((r, i) => { if (!SUSPECT[r[2]]) return;
+    const k = RECIPE_KEYS[i], it = items.get(k);
+    items.set(k, {why: [it?.why, SUSPECT[r[2]]].filter(Boolean).join("／")});
+  });
+  return [...items];
+}
+// 提案がすでにデータに入っているか
+function isReflected(g){
+  const base = wildBase(g.a, g.b);
+  const want = g.c && g.c !== "？" ? g.c : null;
+  if (base) return !!WILD[base]?.some(o => !want || o.res === want);
+  const list = OPTS.get(pairKey(g.a, g.b));
+  return !!list && (!want || list.some(o => o.res === want));
+}
+function openReview(){
+  $("reviewList").innerHTML = reviewItems().map(([k, it]) => {
+    const v = reviews[k] || {};
+    return `<div class="rvrow" data-key="${k}"><span class="t">${recText(k)}</span><span class="why">${it.why}</span>
+      <div class="acts">${["残す","直す","消す"].map(d => `<button data-d="${d}" class="${v.d === d ? "on" : ""}">${d}</button>`).join("")}
+      <input placeholder="メモ（例：〇〇＋〇〇の方が自然）" value="${(v.m||"").replace(/"/g,"&quot;")}"></div></div>`;
+  }).join("") + suggests.map((g, i) =>
+    `<div class="rvrow"${isReflected(g) ? ' style="opacity:.55"' : ""}><span class="t">${g.a}＋${g.b}＝${g.c}</span><span class="why">${isReflected(g) ? "✓反映済み" : "提案：合体できるはず"}${g.m ? "　" + g.m : ""}</span>
+      <div class="acts"><button data-del="${i}">取り消す</button></div></div>`).join("") || `<div class="rvhead">まだありません</div>`;
+  $("reviewList").querySelectorAll("[data-del]").forEach(b => b.onclick = () => { suggests.splice(+b.dataset.del, 1); saveSuggests(); updateUI(); openReview(); });
+  $("reviewList").querySelectorAll(".rvrow[data-key]").forEach(row => {
+    const k = row.dataset.key, get = () => reviews[k] ||= {d: "", m: "", f: false};
+    row.querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
+      const v = get(); v.d = v.d === b.dataset.d ? "" : b.dataset.d; saveReviews();
+      row.querySelectorAll("[data-d]").forEach(x => x.classList.toggle("on", x.dataset.d === v.d));
+    });
+    row.querySelector("input").oninput = e => { get().m = e.target.value; saveReviews(); };
+  });
+  if (!$("review").open) $("review").showModal();
+}
+function reviewText(){
+  const groups = {"消す":[], "直す":[], "残す":[], "未判断":[]};
+  for (const [k, it] of reviewItems()){
+    const v = reviews[k] || {};
+    groups[v.d || "未判断"].push(`・${recText(k)}${v.m ? " … " + v.m : ""}${it.why ? `（${it.why}）` : ""}`);
+  }
+  const open = suggests.filter(g => !isReflected(g));
+  if (open.length) groups["追加してほしい"] = open.map(g => `・${g.a}＋${g.b}＝${g.c}${g.m ? " … " + g.m : ""}`);
+  return "【漢字マージ 組み合わせの見直し】\n" + Object.entries(groups).filter(([,l]) => l.length).map(([g, l]) => `■${g}\n${l.join("\n")}`).join("\n");
+}
+
+// ---- 入力 ----
+const KEYS = {ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"};
+document.addEventListener("keydown", e => {
+  const d = KEYS[e.key];
+  if (d && !suggestMode && !document.querySelector("dialog[open]") && !$("pick").classList.contains("show")){ e.preventDefault(); move(d); }
+  if (e.key === "Escape" && suggestMode) setSuggestMode(false);
+});
+let sx = null, sy = null;
+let suggestMode = false, picked = [];
+function setSuggestMode(on){
+  suggestMode = on; picked.forEach(t => t.el?.firstChild.classList.remove("picked")); picked = [];
+  board.classList.toggle("suggest", on);
+  $("suggestBtn").classList.toggle("on", on);
+  $("suggestBtn").textContent = on ? "タイルを2枚選択…" : "合体の提案";
+  if (on) showMsg("合体できるはずのタイルを2枚クリックしてください（Escでやめる）", true);
+}
+function pickForSuggest(t){
+  if (picked.includes(t)) return;
+  picked.push(t); t.el.firstChild.classList.add("picked");
+  if (picked.length < 2) return;
+  const [a, b] = picked.map(x => x.k);
+  // 画面内の入力ダイアログで、できるはずの字を聞く
+  const dlg = $("sgDialog");
+  $("sgDA").textContent = a; $("sgDB").textContent = b; $("sgDC").value = ""; $("sgDM").value = "";
+  dlg.returnValue = "";
+  dlg.onclose = () => {
+    if (dlg.returnValue === "ok"){
+      const c = $("sgDC").value.trim();
+      addSuggest(a, b, c, $("sgDM").value.trim());
+      showMsg(`提案を記録しました：${a}＋${b}＝${c || "？"}（「見直し」で確認できます）`, true);
+    }
+    setSuggestMode(false);
+  };
+  setTimeout(() => { dlg.showModal(); $("sgDC").focus(); }, 50);
+}
+board.addEventListener("pointerdown", e => {
+  if (suggestMode){
+    const el = e.target.closest(".tile");
+    const t = el && tiles.get(+el.dataset.id);
+    if (t) pickForSuggest(t);
+    return;
+  }
+  sx = e.clientX; sy = e.clientY;
+});
+board.addEventListener("pointerup", e => {
+  if (sx == null) return;
+  const dx = e.clientX - sx, dy = e.clientY - sy;
+  sx = sy = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+});
+$("newBtn").onclick = newGame;
+$("againBtn").onclick = newGame;
+$("bookBtn").onclick = openBook;
+$("closeBook").onclick = () => $("book").close();
+$("reviewBtn").onclick = openReview;
+$("helpBtn").onclick = () => { location.href = "help.html" + (DEBUG ? "?debug" : ""); };
+$("suggestBtn").onclick = () => { if (!busy) setSuggestMode(!suggestMode); };
+$("sgSave").onclick = () => {
+  if (addSuggest($("sgA").value.trim(), $("sgB").value.trim(), $("sgC").value.trim(), $("sgM").value.trim())){
+    ["sgA","sgB","sgC","sgM"].forEach(id => $(id).value = ""); openReview();
+  }
+};
+$("closeReview").onclick = () => $("review").close();
+$("copyClose").onclick = () => $("copyDialog").close();
+// 誤操作防止：1回目で確認表示、3秒以内にもう一度押すと消す（ブラウザ標準の confirm は使えない環境があるため）
+let clearArmed = null;
+$("clearReview").onclick = () => {
+  const b = $("clearReview");
+  if (!clearArmed){
+    b.textContent = "もう一度押すと消えます"; b.classList.add("on");
+    clearArmed = setTimeout(() => { clearArmed = null; b.textContent = "印と提案をすべて消す"; b.classList.remove("on"); }, 3000);
+    return;
+  }
+  clearTimeout(clearArmed); clearArmed = null; b.textContent = "印と提案をすべて消す"; b.classList.remove("on");
+  for (const k of Object.keys(reviews)) delete reviews[k];
+  suggests.length = 0;
+  saveReviews(); saveSuggests(); updateUI(); openReview();
+};
+$("copyReview").onclick = async () => {
+  const txt = reviewText();
+  try { await navigator.clipboard.writeText(txt); $("copyReview").textContent = "コピーしました"; }
+  catch(e){ $("copyText").value = txt; $("copyDialog").showModal(); $("copyText").select(); }
+  setTimeout(() => $("copyReview").textContent = "結果をコピー", 1500);
+};
+window.addEventListener("resize", layout);
+
+// ---- 初期化 ----
+for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+  const el = document.createElement("div");
+  el.className = "cellbg"; el.dataset.r = r; el.dataset.c = c;
+  board.appendChild(el);
+}
+layout();
+newGame();
+</script>
+</body>
+</html>

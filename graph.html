@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>漢字レシピ図</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4efe6; --ink:#2b2622; --sub:#7a6e62; --panel:#fffaf2; --line:#e3d8c7; --edge:#b9ab97;
+  --accent:#c8402c; --in:#2f6fb0; --out:#2f7a4f; --gold:#d9a21b;
+  --d0:#fbf6ec; --d1:#f2d89c; --d2:#eaa66a; --d3:#d4613f; --d4:#a8323a; --d5:#5b3a8c; --d6:#2c2a6b;
+  --d0t:#3a2f25; --d1t:#3a2f25; --d2t:#2b1f15; --d3t:#fff; --d4t:#fff; --d5t:#fff; --d6t:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1d1a17; --ink:#efe7da; --sub:#a89b8b; --panel:#26221e; --line:#3d362f; --edge:#5a5046;
+    --accent:#e7684f; --in:#6aa6e6; --out:#5fbf86;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Noto Serif JP","Yu Mincho","Hiragino Mincho ProN",serif}
+body{display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 16px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:1.3rem;font-weight:900}
+.stats{font-size:.8rem;color:var(--sub)}
+input{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);width:180px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.75rem;color:var(--sub);align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-2px;margin-right:3px;border:1px solid var(--edge)}
+.wrap{flex:1;display:flex;min-height:0}
+#graph{flex:1;min-width:0;position:relative}
+svg{width:100%;height:100%;display:block;cursor:grab}
+svg:active{cursor:grabbing}
+aside{width:340px;border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:14px 16px;font-size:.9rem}
+@media (max-width:760px){ .wrap{flex-direction:column} aside{width:auto;border-left:0;border-top:1px solid var(--line);max-height:45vh} #graph{min-height:55vh} }
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{font:inherit;font-size:.8rem;font-weight:600;border:1px solid var(--line);background:transparent;color:var(--ink);
+  border-radius:99px;padding:4px 12px;cursor:pointer}
+.tabs button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.big{font-size:3rem;font-weight:900;line-height:1}
+.meta{color:var(--sub);font-size:.8rem;margin:4px 0 12px}
+h3{font-size:.85rem;margin:14px 0 6px;color:var(--sub);font-weight:600}
+.row{padding:3px 0;font-weight:900;font-size:1.05rem}
+.k{cursor:pointer;border-bottom:1px dotted var(--sub)}
+.k:hover{color:var(--accent)}
+.plus{color:var(--sub);font-weight:600;margin:0 2px}
+.note{font-size:.72rem;color:var(--sub);font-weight:600;margin-left:6px}
+.tag{font-size:.68rem;font-weight:600;border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+.tag.fin{background:var(--gold);color:#fff}
+.tag.sp{background:var(--ink);color:var(--bg)}
+.tag.warn{background:var(--accent);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-weight:900;cursor:pointer;font-size:1rem}
+.chip small{font-weight:600;color:var(--sub);font-size:.7rem;margin-left:2px}
+.chip:hover{border-color:var(--accent)}
+p.help{color:var(--sub);font-size:.8rem;line-height:1.6;margin:0 0 8px}
+
+.node circle,.node rect{stroke:var(--edge);stroke-width:1}
+.node.final circle{stroke:var(--gold);stroke-width:3}
+.node text{font-weight:900;text-anchor:middle;dominant-baseline:central;pointer-events:none;font-size:15px}
+.node{cursor:pointer}
+.link{fill:none;stroke:var(--edge);stroke-width:1;opacity:.55}
+.dim .node{opacity:.15}
+.dim .link{opacity:.05}
+.dim .node.hl{opacity:1}
+.dim .link.hin{opacity:1;stroke:var(--in);stroke-width:2}
+.dim .link.hout{opacity:1;stroke:var(--out);stroke-width:2}
+.node.sel circle,.node.sel rect{stroke:var(--accent);stroke-width:4}
+.col{fill:var(--sub);font-size:13px;font-weight:600;text-anchor:middle}
+</style>
+</head>
+<body>
+<header>
+  <h1>漢字レシピ図</h1>
+  <span class="stats" id="stats"></span>
+  <input id="q" placeholder="漢字・読みで検索（例：猫、ねこ）">
+  <div class="legend">
+    <span><i style="border-radius:3px;background:var(--d0)"></i>出現する部品</span>
+    <span><i style="background:var(--d2)"></i>中間の漢字（色＝段数）</span>
+    <span><i style="background:var(--d3);border:3px solid var(--gold)"></i>完成形</span>
+    <span style="color:var(--in)">━ 材料</span>
+    <span style="color:var(--out)">━ 使い道</span>
+  </div>
+</header>
+<div class="wrap">
+  <div id="graph"><svg id="svg"></svg></div>
+  <aside>
+    <div class="tabs"><button id="tDetail" class="on">詳細</button><button id="tCheck">チェック</button></div>
+    <div id="detail"></div>
+    <div id="check" hidden></div>
+  </aside>
+</div>
+
+<!-- data.js は更新が多いので、ブラウザのキャッシュを使わず毎回読み込む -->
+<script>document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// ---- データの整理（ゲームと同じ data.js を読む） ----
+const pairKey = (a,b) => [a,b].sort().join("");
+const SPAWN_SET = new Set(SPAWN.map(s => s[0]));
+const UNLOCK = Object.fromEntries(SPAWN.map(s => [s[0], s[1]]));
+const INPUTS = new Set(RECIPES.flatMap(r => [r[0], r[1]]));
+const isFinal = k => !INPUTS.has(k);
+const DEPTH = {};
+SPAWN.forEach(([k]) => DEPTH[k] = 0);
+for (let changed = true; changed;){
+  changed = false;
+  for (const [a,b,c] of RECIPES){
+    if (DEPTH[a] == null || DEPTH[b] == null || DEPTH[c] != null) continue;
+    DEPTH[c] = Math.max(DEPTH[a], DEPTH[b]) + 1; changed = true;
+  }
+}
+function shownParts([a, b, , v]){
+  if (!v) return [a, b];
+  const ps = a === RADICAL[v][0] ? [v, b] : [a, v];
+  return (v === "灬" || v === "刂") ? ps.filter(p => p !== v).concat(v) : ps;
+}
+const MADE = {}, USES = {};
+RECIPES.forEach(r => {
+  (MADE[r[2]] ||= []).push(r);
+  (USES[r[0]] ||= []).push(r);
+  if (r[1] !== r[0]) (USES[r[1]] ||= []).push(r);
+});
+const chars = [...new Set([...SPAWN.map(s => s[0]), ...RECIPES.flatMap(r => r.slice(0,3))])];
+const maxD = Math.max(...chars.map(k => DEPTH[k] ?? 0));
+
+const $ = id => document.getElementById(id);
+$("stats").textContent = `レシピ ${RECIPES.length}／漢字 ${chars.length}（部品 ${SPAWN.length}・完成形 ${chars.filter(isFinal).length}）`;
+
+// ---- グラフ ----
+const nodes = chars.map(k => ({id:k, d: DEPTH[k] ?? 0, spawn: SPAWN_SET.has(k), final: isFinal(k)}));
+const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+const links = [];
+RECIPES.forEach(r => {
+  links.push({source:r[0], target:r[2], r});
+  if (r[1] !== r[0]) links.push({source:r[1], target:r[2], r});
+});
+
+const COL = 190, ROWGAP = 36;
+// 段ごとに縦に並べた初期位置から、力学で軽く整える
+const perCol = {};
+nodes.forEach(n => { n.x = n.d*COL; n.y = (perCol[n.d] = (perCol[n.d]||0) + 1) * ROWGAP; });
+const colH = Math.max(...Object.values(perCol)) * ROWGAP;
+nodes.forEach(n => { n.y += (colH - perCol[n.d]*ROWGAP) / 2; });
+
+const sim = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d => d.id).distance(COL*0.8).strength(0.08))
+  .force("x", d3.forceX(d => d.d*COL).strength(1))
+  .force("y", d3.forceY(colH/2).strength(0.015))
+  .force("collide", d3.forceCollide(19))
+  .stop();
+for (let i = 0; i < 400; i++) sim.tick();
+
+const svg = d3.select("#svg");
+const root = svg.append("g");
+svg.append("defs").html(`
+  <marker id="arr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>`);
+const ys = nodes.map(n => n.y);
+const colTop = Math.min(...ys) - 50;
+root.append("g").selectAll("text").data(d3.range(maxD+1)).join("text")
+  .attr("class","col").attr("x", d => d*COL).attr("y", colTop)
+  .text(d => d === 0 ? "部品" : `${d}段目`);
+
+const R0 = 16;
+const linkSel = root.append("g").selectAll("path").data(links).join("path")
+  .attr("class","link").attr("marker-end","url(#arr)")
+  .attr("d", l => {
+    const s = l.source, t = l.target;
+    const ang = Math.atan2(t.y - s.y, t.x - s.x);
+    const tx = t.x - Math.cos(ang)*(R0+2), ty = t.y - Math.sin(ang)*(R0+2);
+    const mx = (s.x + tx)/2;
+    return `M${s.x},${s.y} C${mx},${s.y} ${mx},${ty} ${tx},${ty}`;
+  });
+
+const nodeSel = root.append("g").selectAll("g").data(nodes).join("g")
+  .attr("class", d => "node" + (d.final ? " final" : "") + (d.spawn ? " spawn" : ""))
+  .attr("transform", d => `translate(${d.x},${d.y})`)
+  .on("click", (e,d) => { e.stopPropagation(); select(d.id); });
+nodeSel.each(function(d){
+  const g = d3.select(this), col = `var(--d${Math.min(d.d,6)})`;
+  if (d.spawn) g.append("rect").attr("x",-R0).attr("y",-R0).attr("width",R0*2).attr("height",R0*2).attr("rx",4).attr("fill",col);
+  else g.append("circle").attr("r",R0).attr("fill",col);
+  g.append("text").attr("fill", `var(--d${Math.min(d.d,6)}t)`).text(d.id);
+  g.append("title").text(`${d.id}（${YOMI[d.id]||""}）`);
+});
+
+const zoom = d3.zoom().scaleExtent([0.2, 4]).on("zoom", e => root.attr("transform", e.transform));
+svg.call(zoom).on("click", () => select(null));
+function fitAll(){
+  const box = root.node().getBBox(), w = svg.node().clientWidth, h = svg.node().clientHeight;
+  const k = Math.min(w/(box.width+60), h/(box.height+60), 1.2);
+  svg.call(zoom.transform, d3.zoomIdentity.translate(w/2 - k*(box.x+box.width/2), h/2 - k*(box.y+box.height/2)).scale(k));
+}
+fitAll();
+
+// ---- 選択と詳細 ----
+const K = k => `<span class="k" data-k="${k}">${k}</span>`;
+function recipeRow(r, mark){
+  const [a,b] = shownParts(r);
+  const v = r[3];
+  const note = v && RADICAL[v] ? `<span class="note">${v}＝${RADICAL[v][1]}</span>` : "";
+  const res = r[2] === mark ? `<b style="color:var(--accent)">${r[2]}</b>` : K(r[2]);
+  const part = p => (v === p && RADICAL[p] && RADICAL[p][0] !== p) ? `<span class="k" data-k="${RADICAL[p][0]}">${p}</span>` : (p === mark ? `<b style="color:var(--accent)">${p}</b>` : K(p));
+  return `<div class="row">${part(a)}<span class="plus">＋</span>${part(b)}<span class="plus">＝</span>${res}${isFinal(r[2]) ? '<span class="tag fin">完成</span>' : ""}${note}</div>`;
+}
+let current = null;
+function select(k){
+  current = k;
+  svg.classed("dim", !!k);
+  nodeSel.classed("hl sel", false);
+  linkSel.classed("hin hout", false);
+  showTab("detail");
+  if (!k){ $("detail").innerHTML = `<p class="help">ノードをクリックすると、その漢字の<b style="color:var(--in)">材料</b>と<b style="color:var(--out)">使い道</b>がハイライトされます。ドラッグで移動、ホイール／ピンチで拡大縮小できます。</p><p class="help">「チェック」タブでは、使い道の少ない部品や、行き止まりの漢字を一覧できます。</p>`; return; }
+  const hl = new Set([k]);
+  (MADE[k]||[]).forEach(r => { hl.add(r[0]); hl.add(r[1]); });
+  (USES[k]||[]).forEach(r => { hl.add(r[0]); hl.add(r[1]); hl.add(r[2]); });
+  nodeSel.classed("hl", d => hl.has(d.id)).classed("sel", d => d.id === k);
+  linkSel.classed("hin", l => l.target.id === k).classed("hout", l => l.r[0] === k || l.r[1] === k);
+  const n = byId[k];
+  const tags = (n.spawn ? `<span class="tag sp">部品・図鑑${UNLOCK[k]}で解放</span>` : "") + (n.final ? '<span class="tag fin">完成形</span>' : "");
+  $("detail").innerHTML =
+    `<div class="big">${k}</div><div class="meta">${YOMI[k]||PART_NAME[k]||""}　${n.d === 0 ? "部品" : n.d + "段目"} ${tags}</div>` +
+    `<h3 style="color:var(--in)">作り方</h3>` + ((MADE[k]||[]).map(r => recipeRow(r, k)).join("") || `<div class="meta">（盤面に出てくる部品）</div>`) +
+    `<h3 style="color:var(--out)">使い道（${(USES[k]||[]).length}）</h3>` + ((USES[k]||[]).map(r => recipeRow(r, k)).join("") || `<div class="meta">なし（これ以上合体しない）</div>`);
+}
+function focus(k){
+  const n = byId[k]; if (!n) return;
+  select(k);
+  const w = svg.node().clientWidth, h = svg.node().clientHeight, s = 1.3;
+  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(w/2 - s*n.x, h/2 - s*n.y).scale(s));
+}
+document.addEventListener("click", e => { const t = e.target.closest("[data-k]"); if (t) focus(t.dataset.k); });
+$("q").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const q = e.target.value.trim(); if (!q) return;
+  const hit = chars.find(k => k === q) || chars.find(k => (YOMI[k]||"") === q) || chars.find(k => (YOMI[k]||"").startsWith(q));
+  if (hit) focus(hit);
+});
+
+// ---- チェック（足りない・偏りを探す用） ----
+const chip = (k, extra) => `<span class="chip" data-k="${k}">${k}${extra != null ? `<small>${extra}</small>` : ""}</span>`;
+const spawnUse = SPAWN.map(([k]) => [k, (USES[k]||[]).length]).sort((a,b) => a[1]-b[1]);
+const oneUse = chars.filter(k => !SPAWN_SET.has(k) && !isFinal(k) && USES[k].length === 1);
+const finalsByD = d3.groups(chars.filter(isFinal), k => DEPTH[k]).sort((a,b) => a[0]-b[0]);
+const hubs = chars.filter(k => !SPAWN_SET.has(k)).map(k => [k, (USES[k]||[]).length]).filter(x => x[1] >= 4).sort((a,b) => b[1]-a[1]);
+$("check").innerHTML =
+  `<h3>部品の使い道の数（少ない順）</h3><p class="help">数字が小さい部品は盤面で詰まりやすいので、レシピを足す候補です。</p>
+   <div class="chips">${spawnUse.map(([k,n]) => chip(k, n)).join("")}</div>
+   <h3>使い道が1つしかない中間の漢字（${oneUse.length}）</h3><p class="help">ここから広げると連鎖が増えます。</p>
+   <div class="chips">${oneUse.map(k => chip(k)).join("")}</div>
+   <h3>よく使われる漢字（使い道4つ以上）</h3>
+   <div class="chips">${hubs.map(([k,n]) => chip(k, n)).join("")}</div>
+   <h3>完成形（段数別）</h3>
+   ${finalsByD.map(([d, ks]) => `<div class="meta" style="margin:6px 0 3px">${d}段目（${ks.length}）</div><div class="chips">${ks.map(k => chip(k)).join("")}</div>`).join("")}`;
+
+function showTab(t){
+  $("detail").hidden = t !== "detail"; $("check").hidden = t !== "check";
+  $("tDetail").classList.toggle("on", t === "detail"); $("tCheck").classList.toggle("on", t === "check");
+}
+$("tDetail").onclick = () => showTab("detail");
+$("tCheck").onclick = () => showTab("check");
+select(null);
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>漢字マージ 遊び方</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4efe6; --ink:#2b2622; --sub:#7a6e62; --board:#c9bba7; --cell:#ddd2c2;
+  --accent:#c8402c; --panel:#fffaf2; --line:#e3d8c7; --gold:#d9a21b;
+  --d0:#fbf6ec; --d0t:#3a2f25; --d1:#f2d89c; --d2:#eaa66a; --d3:#d4613f;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1d1a17; --ink:#efe7da; --sub:#a89b8b; --board:#3a332c; --cell:#4a4138;
+    --accent:#e7684f; --panel:#26221e; --line:#3d362f;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Serif JP","Yu Mincho","Hiragino Mincho ProN",serif}
+body{display:flex;justify-content:center;padding:16px}
+main{width:100%;max-width:640px;line-height:1.8}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+h1{margin:0;font-size:clamp(1.25rem,6vw,1.8rem);font-weight:900;line-height:1.2;white-space:nowrap}
+h1 span{color:var(--accent)}
+h2{font-size:1.15rem;margin:28px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--line)}
+p{margin:6px 0}
+a.btn{display:inline-block;text-decoration:none;background:var(--ink);color:var(--bg);font-weight:600;
+  border-radius:8px;padding:8px 14px;font-size:.9rem;white-space:nowrap}
+.ex{font-weight:900;font-size:1.1rem}
+.ex .r{color:var(--accent)}
+.tiles{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.t{display:flex;flex-direction:column;align-items:center;justify-content:center;width:52px;height:58px;
+  border-radius:8px;background:var(--d0);color:var(--d0t);font-weight:900;font-size:1.5rem;line-height:1.1;
+  box-shadow:0 2px 0 rgba(0,0,0,.12)}
+.t small{font-size:.55rem;font-weight:600;color:var(--sub);margin-top:2px;white-space:nowrap}
+.t.rare{background:var(--d1)}
+.t.wild{background:linear-gradient(135deg,#ffe08a,#f6a6c8,#9fd4ff);color:#3a2f25}
+.t.bushu{background:conic-gradient(from 45deg,#5b3a8c,#c8402c,#d9a21b,#2f7a4f,#5b3a8c);color:#fff;font-size:.95rem;
+  box-shadow:inset 0 0 0 3px gold}
+.t.bushu small,.t.wild small{color:inherit}
+.t.final{box-shadow:inset 0 0 0 3px var(--gold),0 2px 0 rgba(0,0,0,.12);background:var(--d3);color:#fff}
+.t.final small{color:#fff}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+th{color:var(--sub);font-weight:600;font-size:.8rem}
+td.big{font-size:1.3rem;font-weight:900;width:3em}
+.note{color:var(--sub);font-size:.85rem}
+footer{margin:32px 0 16px;text-align:center}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>漢字<span>マージ</span> 遊び方</h1>
+    <a class="btn" id="back" href="index.html">ゲームに戻る</a>
+  </header>
+
+  <h2>基本のルール</h2>
+  <p>矢印キー（WASDも可）か、スマホならスワイプで、盤面のタイルを上下左右に動かします。</p>
+  <p>組み合わせると漢字になる部品同士がぶつかると<b>合体</b>します。</p>
+  <p class="ex">十 ＋ 口 ＝ <span class="r">田</span>　　口 ＋ 力 ＝ <span class="r">加</span> → 加 ＋ 貝 ＝ <span class="r">賀</span></p>
+  <p>合体するたびに得点が入り、図鑑に記録されます。動かせなくなったらおしまいです。</p>
+
+  <h2>部首になると形が変わる部品</h2>
+  <p>漢字は部首として使われると形が変わることがあります。タイルはそのままの形ですが、合体するときは変形した形として使えます。</p>
+  <table id="radicals"><tr><th>タイル</th><th>部首の形</th><th>名前</th><th>例</th></tr></table>
+
+  <h2>完成</h2>
+  <div class="tiles"><div class="t final">森<small>完成</small></div></div>
+  <p>それ以上合体できない漢字ができると<b>「完成」</b>になり、ボーナス点が入ります。完成した字は金枠のタイルとして盤面に残り、もう動かしても合体しません。置き場所に気をつけましょう。</p>
+
+  <h2>選べる合体</h2>
+  <p>同じ組み合わせで別の字もできるときは、合体のときにどの字にするか選べます（←→で選んで ↓・Enter・スペースで決定）。</p>
+  <p class="ex">木 ＋ 口 ＝ <span class="r">束・呆・杏・困</span>　　十 ＋ 口 ＝ <span class="r">田・古・叶</span></p>
+
+  <h2>特別なタイル</h2>
+  <div class="tiles">
+    <div class="t wild">＋<small>一画</small></div>
+    <div class="t bushu">部首<small>なんでも</small></div>
+  </div>
+  <p><b>一画タイル</b>：ときどき出てくるオールマイティな部品です。ぶつけた漢字に<b>一画だけ足した字</b>になります。</p>
+  <p class="ex">日 ＋ 一画 ＝ <span class="r">旦・申・白・旧・田・目・由</span> から選べる</p>
+  <p class="note" id="wildOnly"></p>
+  <p><b>部首タイル（スーパーレア）</b>：ごくまれに出る虹色のタイルです。ぶつけた漢字と合体できる<b>どの部首にでも化けて</b>、できる字を選べます。</p>
+  <p class="ex">日 ＋ 部首 ＝ <span class="r">間・晴・明・音・旺…</span></p>
+
+  <h2>出てくる部品</h2>
+  <p>盤面にはこれらの部品が出てきます。合体できる相手が盤面にない部品は出にくく、隣に相手がいると出やすくなっています。</p>
+  <div class="tiles" id="normal"></div>
+  <h2>珍しい部品</h2>
+  <p>門・言・竹・魚などの部首は、単純な部品からは作れないので、ときどき出てきます。<b>合体できる相手の隣にしか出ない</b>ので、見つけたらチャンスです。</p>
+  <div class="tiles" id="rare"></div>
+
+  <h2>図鑑</h2>
+  <p>「図鑑」ボタンで、見つけた組み合わせを確認できます。まだ見つけていない漢字もうっすら見えるので、何と何で作れるか推理してみましょう。全部で <b id="total">…</b> 通りあります。</p>
+
+  <footer><a class="btn" href="index.html" id="back2">ゲームに戻る</a></footer>
+</main>
+
+<!-- data.js は更新が多いので、ブラウザのキャッシュを使わず毎回読み込む -->
+<script>document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');</script>
+<script>
+// ?debug で来たら、戻り先もデバッグモードにする
+if (new URLSearchParams(location.search).has("debug"))
+  for (const id of ["back", "back2"]) document.getElementById(id).href = "index.html?debug";
+
+// 部品の一覧（data.js から作る）
+const name = k => PART_NAME[k] || YOMI[k] || "";
+const tile = (k, cls) => `<div class="t ${cls || ""}">${k}<small>${name(k)}</small></div>`;
+document.getElementById("normal").innerHTML = SPAWN.filter(s => s[3] !== "rare").map(([k]) => tile(k)).join("");
+document.getElementById("rare").innerHTML = SPAWN.filter(s => s[3] === "rare").map(([k]) => tile(k, "rare")).join("");
+
+// 部首の形の変化
+const ex = v => RECIPES.filter(r => r[3] === v).slice(0, 4).map(r => r[2]).join("・");
+document.getElementById("radicals").innerHTML += Object.entries(RADICAL)
+  .filter(([v, [base]]) => v !== base)
+  .map(([v, [base, nm]]) => `<tr><td class="big">${base}</td><td class="big">${v}</td><td class="note" style="white-space:nowrap">${nm}</td><td>${ex(v)}</td></tr>`).join("");
+
+// 一画足しでしか作れない字
+const only = Object.entries(WILD_EXTRA).flatMap(([b, l]) => l.map(c => `${b}→${c}`));
+document.getElementById("wildOnly").textContent = only.length ? `一画タイルでしか作れない組み合わせもあります（${only.join("、")}）。` : "";
+
+// 図鑑の総数（通常のレシピ＋一画足しだけの字）
+document.getElementById("total").textContent = RECIPES.length + only.length;
+</script>
+</body>
+</html>
