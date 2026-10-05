@@ -16,6 +16,7 @@
 | `data.js` | レシピデータ（部品・組み合わせ・読み・出やすさ） |
 | `graph.html` | 漢字レシピ図（開発用。全レシピをネットワーク図で表示） |
 | `tools/balance.js` | バランス検証シミュレーター（開発用） |
+| `tools/make_images.py` | ファビコン・OGP画像（`favicon.ico` `icon-*.png` `apple-touch-icon.png` `ogp.png`）を作るスクリプト（要 Pillow） |
 
 ## 開発用
 
