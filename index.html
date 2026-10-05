@@ -165,6 +165,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
     <button id="newBtn">新しく始める</button>
     <button id="bookBtn" class="ghost">図鑑 0/0</button>
     <button id="helpBtn" class="ghost">遊び方</button>
+    <button id="soundBtn" class="ghost" title="効果音のON/OFF">🔊</button>
     <button id="suggestBtn" class="ghost debug-only">合体の提案</button>
     <button id="reviewBtn" class="ghost debug-only">見直し</button>
   </div>
@@ -275,13 +276,68 @@ const store = {
   set(k, v){ try{ localStorage.setItem("kanjimerge:"+k, JSON.stringify(v)); }catch(e){} }
 };
 
+// ---- 効果音（Web Audio で合成。音声ファイルは使わない） ----
+// 琴をはじいたような音で、音階は陽音階（レ・ミ・ソ・ラ・シ）。
+// ブラウザは最初の操作があるまで音を出せないので、キー入力やタップで unlock してから鳴らす。
+const sound = (() => {
+  let ctx = null, master = null, ready = false, on = store.get("sound", true);
+  const ac = () => {
+    if (!ready) return null;
+    if (!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.6; master.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  };
+  const YO = [293.66, 329.63, 392.00, 440.00, 493.88];
+  const note = i => YO[((i % 5) + 5) % 5] * 2 ** Math.floor(i / 5);
+  // はじく音：三角波＋倍音を少し、立ち上がりで音程をわずかに下げてすぐ減衰
+  function pluck(freq, when = 0, vol = 0.25, len = 0.6){
+    const c = on && ac(); if (!c) return;
+    const t = c.currentTime + when;
+    for (const [mul, v, type] of [[1, 1, "triangle"], [2, 0.25, "sine"], [3.01, 0.08, "sine"]]){
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq * mul * 1.012, t);
+      o.frequency.exponentialRampToValueAtTime(freq * mul, t + 0.04);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol * v, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g).connect(master); o.start(t); o.stop(t + len + 0.05);
+    }
+  }
+  // コトッという短い打撃音（ノイズを帯域で絞る）
+  function knock(vol = 0.12, freq = 900, len = 0.06){
+    const c = on && ac(); if (!c) return;
+    const n = Math.floor(c.sampleRate * len), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 3;
+    const src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = buf; bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 3; g.gain.value = vol;
+    src.connect(bp).connect(g).connect(master); src.start();
+  }
+  return {
+    get on(){ return on; },
+    toggle(){ on = !on; store.set("sound", on); if (on){ ready = true; pluck(note(5), 0, 0.2, 0.4); } return on; },
+    unlock(){ ready = true; if (on) ac(); },
+    slide(){ knock(0.10, 700); },                                                    // 動かしただけ
+    merge(depth){ pluck(note(2 + Math.min(depth, 9)), 0, 0.22, 0.5); },              // 合体（深い字ほど高い）
+    final(depth){ const b = 2 + Math.min(depth, 6); [0, 2, 4].forEach((s, i) => pluck(note(b + s), i * 0.09, 0.2, 0.7)); }, // 完成
+    discover(){ [12, 14].forEach((n, i) => pluck(note(n), 0.14 + i * 0.07, 0.08, 0.35)); }, // 新発見
+    special(){ [0, 1, 2, 3, 4].forEach(i => pluck(note(10 + i), i * 0.05, 0.07, 0.4)); },   // 一画・部首タイル出現
+    tick(){ knock(0.06, 2200, 0.03); },                                              // 選択画面のカーソル
+    over(){ [4, 2, 0, -3].forEach((s, i) => pluck(note(s), i * 0.18, 0.18, 0.9)); },  // おしまい
+  };
+})();
+
 // ---- 状態 ----
 const $ = id => document.getElementById(id);
 // デバッグモード：URL に ?debug を付けると「合体の提案」「見直し」「違和感」が使える（例：index.html?debug）
 const DEBUG = new URLSearchParams(location.search).has("debug");
 document.body.classList.toggle("debug", DEBUG);
 const board = $("board");
-let grid, tiles = new Map(), nextId = 1, score, busy, over;
+let grid, tiles = new Map(), nextId = 1, score, busy, over, starting = false;
 let best = store.get("best", 0);
 // 見つけたレシピ（RECIPE_KEYS か W:一画足し）。データを直して消えたレシピの記録は数えない
 const found = new Set(store.get("found", []).filter(k => REC.has(k) || WILD_KEYS.has(k)));
@@ -352,7 +408,7 @@ function newGame(){
   grid = Array.from({length:N}, () => Array(N).fill(null));
   tiles = new Map(); score = 0; busy = false; over = false;
   $("over").classList.remove("show"); $("pick").classList.remove("show");
-  for (let i = 0; i < 8; i++) spawn();
+  starting = true; for (let i = 0; i < 8; i++) spawn(); starting = false;
   updateUI();
   showMsg("矢印キー / スワイプで部品を合体させよう");
 }
@@ -384,6 +440,7 @@ function spawn(avoid = []){
   const [r,c] = empty[Math.floor(Math.random()*empty.length)];
   const t = makeTile(pickSpawn(r,c), r, c, "new");
   grid[r][c] = t; tiles.set(t.id, t);
+  if (isWild(t.k) && !starting) sound.special();   // 最初の配置では鳴らさない
 }
 
 function move(dir){
@@ -486,7 +543,7 @@ function choose(title, opts){
     // ←→ で選んで ↓ / Enter / スペースで決定（WASD なら A・D で選んで S で決定。数字キーでも直接選べる）
     const btns = [...box.querySelectorAll(".opt")];
     let cur = 0;
-    const select = i => { cur = (i + btns.length) % btns.length; btns.forEach((b,j) => b.classList.toggle("cur", j === cur)); btns[cur].focus(); };
+    const select = i => { cur = (i + btns.length) % btns.length; btns.forEach((b,j) => b.classList.toggle("cur", j === cur)); btns[cur].focus(); sound.tick(); };
     const onKey = e => {
       const step = {ArrowRight:1, d:1, ArrowLeft:-1, a:-1}[e.key];
       const i = +e.key - 1;
@@ -516,6 +573,13 @@ function finishTurn(events){
     last = e;
   });
   if (events.length){ store.set("found", [...found]); showCombo(last); }
+  // 効果音：一番深い字で鳴らす。完成があれば完成の音、新発見があればキラッと重ねる
+  if (!events.length) sound.slide();
+  else {
+    const deepest = Math.max(...events.map(e => DEPTH[e.res] || 1));
+    if (events.some(e => e.fin)) sound.final(deepest); else sound.merge(deepest);
+    if (events.some(e => e.isNew)) sound.discover();
+  }
   if (score > best){ best = score; store.set("best", best); }
 
   setTimeout(() => {
@@ -539,6 +603,7 @@ function canMove(){
 function checkOver(){
   if (canMove()) return;
   over = true;
+  sound.over();
   $("overMsg").innerHTML = `スコア <b>${score}</b><br>図鑑 ${found.size}/${BOOK_TOTAL}`;
   $("over").classList.add("show");
 }
@@ -573,6 +638,7 @@ function showMsg(msg, alert){
 
 function updateUI(){
   $("score").textContent = score;
+  $("soundBtn").textContent = sound.on ? "🔊" : "🔇";
   $("best").textContent = best;
   $("bookBtn").textContent = `図鑑 ${found.size}/${BOOK_TOTAL}`;
   const nf = Object.entries(reviews).filter(([k, v]) => v.f && (REC.has(k) || WILD_KEYS.has(k))).length;
@@ -648,6 +714,7 @@ function reviewText(){
 // ---- 入力 ----
 const KEYS = {ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"};
 document.addEventListener("keydown", e => {
+  sound.unlock();
   const d = KEYS[e.key];
   if (d && !suggestMode && !document.querySelector("dialog[open]") && !$("pick").classList.contains("show")){ e.preventDefault(); move(d); }
   if (e.key === "Escape" && suggestMode) setSuggestMode(false);
@@ -681,6 +748,7 @@ function pickForSuggest(t){
   setTimeout(() => { dlg.showModal(); $("sgDC").focus(); }, 50);
 }
 board.addEventListener("pointerdown", e => {
+  sound.unlock();
   if (suggestMode){
     const el = e.target.closest(".tile");
     const t = el && tiles.get(+el.dataset.id);
@@ -701,6 +769,7 @@ $("againBtn").onclick = newGame;
 $("bookBtn").onclick = openBook;
 $("closeBook").onclick = () => $("book").close();
 $("reviewBtn").onclick = openReview;
+$("soundBtn").onclick = () => { sound.toggle(); updateUI(); $("soundBtn").blur(); };
 $("helpBtn").onclick = () => { location.href = "help.html" + (DEBUG ? "?debug" : ""); };
 $("suggestBtn").onclick = () => { if (!busy) setSuggestMode(!suggestMode); };
 $("sgSave").onclick = () => {
