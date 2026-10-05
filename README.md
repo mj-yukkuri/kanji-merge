@@ -1,9 +1,11 @@
 # 漢字マージ
 
+### ▶ [ここをクリックして遊ぶ](https://mj-yukkuri.github.io/kanji-merge/)
+
 部首や部品のタイルを動かして合体させ、漢字を作っていくパズルゲームです（2048風）。
 
-- 遊ぶ：`index.html` をブラウザで開く
-- 遊び方：`help.html`
+- 遊び方：https://mj-yukkuri.github.io/kanji-merge/help.html
+- ダウンロードして遊ぶ場合は `index.html` をブラウザで開いてください
 
 ## ファイル
 
